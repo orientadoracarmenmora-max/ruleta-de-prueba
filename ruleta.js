@@ -567,11 +567,11 @@
     const radius = wheelSize / 2 - 2;
     const space = radius * .37 * 2 * Math.sin(Math.PI / Math.max(2, pool.length));
     const fewQuestions = pool.length <= 4;
-    const size = fewQuestions ? 30 : Math.min(34, space * .43);
-    const maxLines = fewQuestions ? 6 : Math.max(1, Math.min(5, Math.floor(space / (size * 1.16))));
+    const size = fewQuestions ? 40 : Math.min(49, space * .62);
+    const maxLines = fewQuestions ? 4 : Math.max(1, Math.min(3, Math.floor(space / (size * 1.16))));
     const family = getComputedStyle(root).getPropertyValue('--display').trim();
     measure.font = `bold ${size}px ${family}`;
-    const maxWidth = radius * (fewQuestions ? .62 : .60);
+    const maxWidth = radius * (fewQuestions ? .58 : .52);
     wheelText = { family, size, lines: pool.map(({ question }) => wrapWheelText(question, maxWidth, maxLines)) };
   }
 
