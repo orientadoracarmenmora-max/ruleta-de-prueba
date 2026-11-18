@@ -183,7 +183,6 @@
   let utterance = null;
   let speechPauseTimeout;
   let speechStartTimeout;
-  let useAlternateMobileVoice = false;
   let speakingFrom = '';
   let pendingSpeechFrom = '';
   let preferredVoice = '';
@@ -416,6 +415,7 @@
     const choices = $('closed-choices');
     choices.replaceChildren();
     $('closed-feedback').textContent = '';
+    $('listen-answer').hidden = true;
     choices.hidden = !value || !closedMode() || !currentEntry;
     if (!choices.hidden) {
       const binary = $('mode').value === 'binary';
@@ -458,6 +458,7 @@
       updateControls();
     }
     const solution = entryOptions(currentEntry)[correct];
+    $('listen-answer').hidden = false;
     $('closed-feedback').textContent = timedOut
       ? `Tiempo agotado. La respuesta correcta es ${solution}.`
       : '';
@@ -566,11 +567,11 @@
     const radius = wheelSize / 2 - 2;
     const space = radius * .37 * 2 * Math.sin(Math.PI / Math.max(2, pool.length));
     const fewQuestions = pool.length <= 4;
-    const size = fewQuestions ? 40 : Math.min(49, space * .62);
-    const maxLines = fewQuestions ? 4 : Math.max(1, Math.min(3, Math.floor(space / (size * 1.16))));
+    const size = fewQuestions ? 30 : Math.min(34, space * .43);
+    const maxLines = fewQuestions ? 6 : Math.max(1, Math.min(5, Math.floor(space / (size * 1.16))));
     const family = getComputedStyle(root).getPropertyValue('--display').trim();
     measure.font = `bold ${size}px ${family}`;
-    const maxWidth = radius * (fewQuestions ? .58 : .52);
+    const maxWidth = radius * (fewQuestions ? .62 : .60);
     wheelText = { family, size, lines: pool.map(({ question }) => wrapWheelText(question, maxWidth, maxLines)) };
   }
 
@@ -750,6 +751,7 @@
 
   function setAnswerVisible(visible) {
     $('answer').hidden = !visible;
+    $('listen-answer').hidden = !visible || !currentAnswer;
     $('answer').textContent = visible ? currentAnswer : '';
     $('reveal').hidden = closedMode() || !hasAnswers() || !currentAnswer || !$('answer').hidden;
   }
@@ -1155,7 +1157,7 @@
     for (const voice of voices) select.add(new Option(`${voice.name} (${voice.lang})`, voice.voiceURI));
     const selected = voices.find((voice) => voice.voiceURI === preferredVoice);
     if (selected) select.value = preferredVoice;
-    return selected || (mobile && !useAlternateMobileVoice ? null : automatic);
+    return selected || automatic;
   }
 
   function isAppleMobile() {
@@ -1213,6 +1215,7 @@
     $('listen').title = label;
     $('listen-icon').textContent = readingQuestion ? '■' : '🔊';
     $('listen-rules').textContent = speakingFrom === 'rules' ? 'Detener reglas' : 'Escuchar reglas';
+    $('listen-answer').textContent = speakingFrom === 'answer' ? '■ Detener respuesta' : '🔊 Escuchar respuesta';
     $('test-voice').textContent = speakingFrom === 'test-voice' ? 'Detener prueba' : 'Probar voz';
   }
 
@@ -1237,11 +1240,12 @@
       $('speech-status').textContent = 'Este navegador no ofrece lectura en voz alta.';
       return;
     }
-    const parts = (Array.isArray(text) ? text : [text]).filter((part) => part.trim());
+    let parts = (Array.isArray(text) ? text : [text]).filter((part) => part.trim());
+    // Keep iOS reading in the original tap, without delayed follow-up utterances.
+    if (isAppleMobile()) parts = [parts.map(part => /[.!?…]$/.test(part.trim()) ? part.trim() : `${part.trim()}.`).join(' ')] ;
     if (!parts.length) return;
     let partIndex = 0;
     const voice = refreshVoices();
-    const mobile = isAppleMobile();
     const unavailable = 'La lectura no ha podido iniciarse. Vuelve a tocar el botón o elige otra voz en «Elegir voz y velocidad».';
     pendingSpeechFrom = control;
 
@@ -1262,8 +1266,7 @@
       };
       const retry = (cancelPending = false) => {
         if (utterance !== request) return;
-        if (mobile || !selectedVoice || started) {
-          if (mobile && !preferredVoice) useAlternateMobileVoice = !selectedVoice;
+        if (!selectedVoice || started) {
           finish(unavailable);
           if (cancelPending) speech.cancel();
           return;
@@ -1297,7 +1300,7 @@
       };
       request.onerror = () => retry();
       utterance = request;
-      speechStartTimeout = setTimeout(() => retry(true), 4000);
+      speechStartTimeout = setTimeout(() => retry(true), 10000);
       try {
         if (speech.paused) speech.resume();
         speech.speak(request);
@@ -1787,6 +1790,12 @@
       });
     }
     speak(parts, 'listen');
+  });
+  $('listen-answer').addEventListener('click', () => {
+    const solution = closedMode() && currentEntry
+      ? entryOptions(currentEntry)[isQuiz() ? currentEntry.correct : currentEntry.binaryCorrect]
+      : currentAnswer;
+    speak(solution || '', 'answer');
   });
   $('test-voice').addEventListener('click', () => speak('Así se escucharán las preguntas de la ruleta.', 'test-voice'));
   $('voice').addEventListener('change', () => {
